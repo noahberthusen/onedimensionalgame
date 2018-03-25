@@ -32,11 +32,13 @@ class Character
     int _pos;
     int _prevPos;
     boolean _alive;
+    boolean _jump;
     CRGB _color;
     long _tempPos;
 
     //constructor
     Character() {
+      _jump = false;
       _color = CRGB::Red;
       _tempPos = 0;
       _pos = 0;
@@ -44,9 +46,7 @@ class Character
       //_ability = CRGB::Red;
     }
     void Die() {
-      // animation
-      // lives minus one
-      _pos = 0;
+
     }
 };
 
@@ -101,6 +101,9 @@ class Pit
     int getPos() {
       return _pos;
     }
+    void Kill() {
+      _alive = false;
+    }
     int _pos;
 };
 
@@ -146,30 +149,43 @@ void loop () {
       switch(level) {
         case 1:
           drawCharacter(hero);
-          drawPit();
-          //drawEnemy();
           drawExit();
           break;
         case 2:
           drawCharacter(hero);
+          drawEnemy();
           drawExit();
           break;
+        case 3:
+          drawCharacter(hero);
+          drawPit();
+          drawExit();
+          break;          
       }
       FastLED.show();
-    }
-    
-      
+    }   
+}
+
+void cleanupLevel() {
+  for (int i = 0; i < numEnemies; i++) {
+    enemies[i].Kill(true);
+  }
+  for (int i = 0; i < numPits; i++) {
+    pits[i].Kill();
+  }
 }
 
 void setupLevel(int level) {
   switch(level) {
     case 1:
-      pits[0].spawnPit(100);
-      //enemies[0].Spawn(130,-1,50);
       return;
     case 2:
+      enemies[0].Spawn(130,-1,50);
       return;
     case 3:
+      pits[0].spawnPit(50);
+      pits[1].spawnPit(100);
+      return;
     default:
       return;
   }
@@ -184,8 +200,15 @@ void getInput(Character &character) {
 
   if (xPosition < -4 && (yPosition > -10 && yPosition < 10)) {
     character._color = CRGB::Yellow;
-    if (buttonState == 1) {
-      
+    if (buttonState == 1 && !character._jump) {
+      character._jump = true;
+      leds[character._pos] = CRGB::Black;
+      character._pos += 7;
+      enemyInteraction();
+      pitInteraction();
+    }
+    if (buttonState == 0) {
+      character._jump = false; 
     }
   } else if (xPosition > 0 && (yPosition > -10 && yPosition < 10)) {
     character._color = CRGB::Blue;
@@ -241,7 +264,7 @@ void drawCharacter (Character &character) {
       if (character._pos < 0) {
         character._pos = 0;
       }
-      if (hero._pos == NUM_LEDS-1) {
+      if (hero._pos >= NUM_LEDS-1) {
         hero._pos = 0;
         FastLED.clear();
         Win();
@@ -255,13 +278,11 @@ void drawCharacter (Character &character) {
 void enemyInteraction() {
   for (int i = 0; i < numEnemies; i++) {
     if (enemies[i]._alive) {
-      if (hero._pos == enemies[i]._pos) {
-        if (hero._color == CRGB(102, 51, 153)) {
+      if (hero._pos == enemies[i]._pos && hero._pos > 0) {
+        if (hero._color == CRGB(102,51,153)) {
           
-        } else if (hero._color == CRGB(255, 0, 0)) {
-          hero.Die();
         } else {
-          hero.Die();
+          Die();
         }
       }
       //add more to tell about colors
@@ -272,11 +293,25 @@ void enemyInteraction() {
 void pitInteraction() {
   for (int i = 0; i < numPits; i++) {
     if (pits[i]._alive) {
-      if (hero._pos == pits[i]._pos-2 || hero._pos == pits[i]._pos+2) {
-        hero.Die();
+      for (int j = 0; j < 5; j++) {
+        if (hero._pos == pits[i]._pos+j){
+          hero.Die();
+          Die();
+        }
       }
     }
   }
+}
+
+void Die() {
+  for (int i = 0; i < 30; i++) {
+    leds[hero._pos + i] = CRGB(random(255), random(255), random(255));
+    leds[hero._pos - i] = CRGB(random(255), random(255), random(255));
+    FastLED.show();
+    delay(5);
+  }
+  FastLED.clear();
+  hero._pos = 0;
 }
 
 void Win() {
@@ -291,6 +326,7 @@ void Win() {
     delay(5);
   }
   level += 1;
+  cleanupLevel();
   setupLevel(level);
   FastLED.clear();
 }
@@ -301,21 +337,21 @@ void drawPit() {
       //refine this
       pits[i]._tempPos += 50;
       if (pits[i]._tempPos > 1000) {
-        leds[pits[i]._pos-2] = CRGB::Red;
-        leds[pits[i]._pos-1] = CRGB::DarkRed;
         leds[pits[i]._pos] = CRGB::Red;
         leds[pits[i]._pos+1] = CRGB::DarkRed;
         leds[pits[i]._pos+2] = CRGB::Red;
+        leds[pits[i]._pos+3] = CRGB::DarkRed;
+        leds[pits[i]._pos+4] = CRGB::Red;
   
         if (pits[i]._tempPos > 2000) {
           pits[i]._tempPos = 0;
         }
       } else {
-        leds[pits[i]._pos-2] = CRGB::DarkRed;
-        leds[pits[i]._pos-1] = CRGB::Red;
         leds[pits[i]._pos] = CRGB::DarkRed;
         leds[pits[i]._pos+1] = CRGB::Red;
         leds[pits[i]._pos+2] = CRGB::DarkRed;
+        leds[pits[i]._pos+3] = CRGB::Red;
+        leds[pits[i]._pos+4] = CRGB::DarkRed;
       }
     }
   }
