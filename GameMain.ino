@@ -16,10 +16,12 @@ CRGB leds[NUM_LEDS];
 int xPin = A1;
 int yPin = A0;
 int joyButtonPin = 2;
+int buttonPin = 3;
 
 int xPosition = 0;
 int yPosition = 0;
 int joyButtonState = 0;
+int buttonState = 0;
 
 class Character
 {
@@ -46,14 +48,6 @@ class Character
       // lives minus one
       _pos = 0;
     }
-    void Win() {
-      for (int i = 0; i < NUM_LEDS; i++) {
-        leds[NUM_LEDS-1-i] = CRGB::Green;
-        FastLED.show();
-        delay(5);
-      }
-      _alive = false;
-    }
 };
 
 class Enemy
@@ -71,6 +65,7 @@ class Enemy
     Enemy(void) {
       _alive = true;
       _tempPos = 0;
+      _pos = 0;
     }
     void Spawn(int pos, int dir, int speed_) {
       _starting = pos;
@@ -94,10 +89,12 @@ class Pit
   private:
   public:
     boolean _alive;
+    int _tempPos;
     Pit(void) {
       _alive = false;
     }
     void spawnPit(int pos) {
+      _tempPos = 0;
       _alive = true;
       _pos = pos;
     }
@@ -109,10 +106,20 @@ class Pit
 
 Character hero;
 
-Enemy enemy;
-Enemy enemy2;
-Enemy enemy3;
-Pit pit;
+// game objects
+const int numEnemies = 2;
+Enemy enemies[numEnemies] = 
+{
+  Enemy(), Enemy()
+};
+const int numPits = 2;
+Pit pits[numPits] = 
+{
+  Pit(), Pit()
+};
+
+
+int level = 1;
 
 void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);
@@ -123,30 +130,49 @@ void setup() {
   pinMode(xPin, INPUT);
   pinMode(yPin, INPUT);
   pinMode(joyButtonPin, INPUT_PULLUP); 
+  pinMode(buttonPin, INPUT);
 
-  
-
-  enemy2.Spawn(140,-1,60);
-  enemy.Spawn(0,1,90);
-  //pit.spawnPit(10);
-
+  setupLevel(level);
 }
 
+
+
 void loop () {
-  while (hero._alive) {
-    long mm = millis();
-    long lastRefreshTime = 0;
+
+  long mm = millis();
+  long lastRefreshTime = 0;
     if (mm - lastRefreshTime >= REFRESH_INTERVAL) {
       lastRefreshTime += REFRESH_INTERVAL;
-      //drawEnemy(enemy2);
-      //drawEnemy(enemy);
-      drawExit();
-      //drawPit(pit);
-      //drawEnemy(enemy3);
-      drawCharacter(hero);
+      switch(level) {
+        case 1:
+          drawCharacter(hero);
+          drawPit();
+          //drawEnemy();
+          drawExit();
+          break;
+        case 2:
+          drawCharacter(hero);
+          drawExit();
+          break;
+      }
+      FastLED.show();
     }
-    FastLED.show(); 
-  }  
+    
+      
+}
+
+void setupLevel(int level) {
+  switch(level) {
+    case 1:
+      pits[0].spawnPit(100);
+      //enemies[0].Spawn(130,-1,50);
+      return;
+    case 2:
+      return;
+    case 3:
+    default:
+      return;
+  }
 }
 
 void getInput(Character &character) {
@@ -154,13 +180,18 @@ void getInput(Character &character) {
   yPosition = map(analogRead(yPin), 0, 1023, -80, 80);
   joyButtonState = digitalRead(joyButtonPin);
   xPosition = map(analogRead(xPin), 0, 1023, -80, 80);
-  Serial.print(yPosition);
-  Serial.print("\n");
-  Serial.print(xPosition);
-  if (xPosition < -4 && (yPosition > -5 && yPosition < 4)) {
+  buttonState = digitalRead(buttonPin);
+
+  if (xPosition < -4 && (yPosition > -10 && yPosition < 10)) {
     character._color = CRGB::Yellow;
-  } else if (xPosition > 0 && (yPosition > -5 && yPosition < 4)) {
+    if (buttonState == 1) {
+      
+    }
+  } else if (xPosition > 0 && (yPosition > -10 && yPosition < 10)) {
     character._color = CRGB::Blue;
+    if( buttonState == 1) {
+      character._color = CRGB(102, 51, 153);
+    }    
   } else {
     character._color = CRGB::Red;
   }
@@ -168,35 +199,36 @@ void getInput(Character &character) {
 }
 
 
-void drawEnemy(Enemy &enemy) {
-  if (enemy._alive) {
-    enemy._tempPos += enemy._speed;
-  
-    if (enemy._tempPos > 1000) {
-      
-      enemy._prevPos = enemy._pos;
-      enemy._pos += (1 * enemy._dir);
-  
-      leds[enemy._prevPos] = CRGB::Black;
-      leds[enemy._pos] = CRGB::White;
-      
-      if (enemy._pos == 0) {
-        enemy._pos = NUM_LEDS;
-        leds[0] = CRGB::Black;
-      } else if (enemy._pos == NUM_LEDS) {
-        enemy._pos = 0;
+void drawEnemy() {
+  for (int i = 0; i < numEnemies; i++) {
+    if (enemies[i]._alive) {
+      enemies[i]._tempPos += enemies[i]._speed;
+    
+      if (enemies[i]._tempPos > 1000) {
+        
+        enemies[i]._prevPos = enemies[i]._pos;
+        enemies[i]._pos += (1 * enemies[i]._dir);
+    
+        leds[enemies[i]._prevPos] = CRGB::Black;
+        leds[enemies[i]._pos] = CRGB::White;
+        
+        if (enemies[i]._pos == 0) {
+          enemies[i]._pos = NUM_LEDS;
+          leds[0] = CRGB::Black;
+        } else if (enemies[i]._pos == NUM_LEDS) {
+          enemies[i]._pos = 0;
+        }
+        enemies[i]._tempPos = 0; 
       }
-      enemy._tempPos = 0; 
     }
-  }
-  if (inPit(enemy._pos)) {
-    enemy.Kill(false);
   }
 }
 
 void drawCharacter (Character &character) {
   if (character._alive) {
     getInput(character);
+    enemyInteraction();
+    pitInteraction();
     character._tempPos += abs(yPosition);
     if (character._tempPos > 1000) {
       
@@ -208,33 +240,84 @@ void drawCharacter (Character &character) {
       
       if (character._pos < 0) {
         character._pos = 0;
-      } else if (character._pos == NUM_LEDS-1) {
-        //character._pos = 0;
-        //win condition -- code
-        character.Win();
+      }
+      if (hero._pos == NUM_LEDS-1) {
+        hero._pos = 0;
+        FastLED.clear();
+        Win();
       }
       character._tempPos = 0; 
     } 
   }
-  if (inPit(character._pos)) {
-    character.Die();
+  
+}
+
+void enemyInteraction() {
+  for (int i = 0; i < numEnemies; i++) {
+    if (enemies[i]._alive) {
+      if (hero._pos == enemies[i]._pos) {
+        if (hero._color == CRGB(102, 51, 153)) {
+          
+        } else if (hero._color == CRGB(255, 0, 0)) {
+          hero.Die();
+        } else {
+          hero.Die();
+        }
+      }
+      //add more to tell about colors
+    }
   }
 }
 
-boolean inPit(int pos) {
-  if (pos == pit._pos) {
-    return true;
-  } else {
-    return false;
+void pitInteraction() {
+  for (int i = 0; i < numPits; i++) {
+    if (pits[i]._alive) {
+      if (hero._pos == pits[i]._pos-2 || hero._pos == pits[i]._pos+2) {
+        hero.Die();
+      }
+    }
   }
 }
 
-void drawPit(Pit pit) {
-  if (pit._alive) {
-    //randomly sized pit maybe
-    leds[pit._pos] = CRGB::Purple;
-    leds[pit._pos+1] = CRGB::Purple;
-    leds[pit._pos-1] = CRGB::Purple;
+void Win() {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[NUM_LEDS-1-i] = CRGB::Green;
+    FastLED.show();
+    delay(5);
+  }
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[NUM_LEDS-1-i] = CRGB::Black;
+    FastLED.show();
+    delay(5);
+  }
+  level += 1;
+  setupLevel(level);
+  FastLED.clear();
+}
+
+void drawPit() {
+  for (int i = 0; i < numPits; i++) {
+    if (pits[i]._alive) {
+      //refine this
+      pits[i]._tempPos += 50;
+      if (pits[i]._tempPos > 1000) {
+        leds[pits[i]._pos-2] = CRGB::Red;
+        leds[pits[i]._pos-1] = CRGB::DarkRed;
+        leds[pits[i]._pos] = CRGB::Red;
+        leds[pits[i]._pos+1] = CRGB::DarkRed;
+        leds[pits[i]._pos+2] = CRGB::Red;
+  
+        if (pits[i]._tempPos > 2000) {
+          pits[i]._tempPos = 0;
+        }
+      } else {
+        leds[pits[i]._pos-2] = CRGB::DarkRed;
+        leds[pits[i]._pos-1] = CRGB::Red;
+        leds[pits[i]._pos] = CRGB::DarkRed;
+        leds[pits[i]._pos+1] = CRGB::Red;
+        leds[pits[i]._pos+2] = CRGB::DarkRed;
+      }
+    }
   }
 }
 
@@ -245,6 +328,4 @@ void drawExit() {
   leds[NUM_LEDS-3] = CRGB::White;
   leds[NUM_LEDS-3].fadeLightBy(220);
 }
-
-
 
