@@ -10,6 +10,7 @@
 // Game
 #define REFRESH_INTERVAL 1000
 CRGB leds[NUM_LEDS];
+long ms = 0;
 
 int xPin = A1;
 int yPin = A0;
@@ -29,17 +30,23 @@ class Character
     int _prevPos;
     boolean _alive;
     int _dir;
+    boolean _shield;
     boolean _jump;
     boolean _attack;
     CRGB _color;
-    long _tempPos;
+    int _tempPos;
+    long _attackTime;
+    long _jumpTime;
+    long _shieldTime;
 
     //constructor
     Character() {
       _jump = false;
+      _shield = false;
+      _attack = false;
       _color = CRGB::Red;
       _tempPos = 0;
-      _pos = 0;
+      _pos = 3;
       _alive = true;
       //_ability = CRGB::Red;
     }
@@ -53,12 +60,12 @@ class Enemy
     int _prevPos;
     boolean _alive;
     int _speed;
-    long _tempPos;
+    int _tempPos;
     
     Enemy(void) {
       _alive = false;
       _tempPos = 0;
-      _pos = 0;
+      _pos = 3;
     }
     virtual void Spawn(int pos, int dir, int speed_) {
       _pos = pos;
@@ -89,12 +96,12 @@ class sinEnemy
     int _prevPos;
     boolean _alive;
     int _speed;
-    long _tempPos;
+    int _tempPos;
     
     sinEnemy(void) {
       _alive = false;
       _tempPos = 0;
-      _pos = 0;
+      _pos = 3;
     }
     void Spawn(int pos, int upper, int lower, int speed_) {
       _upper = upper;
@@ -117,7 +124,7 @@ class Boss
     int _prevPos;
     boolean _alive;
     int _speed;
-    long _tempPos;
+    int _tempPos;
     int _teleport;
     int _guckCount = 0;
     int _lives = 4;
@@ -125,7 +132,7 @@ class Boss
     Boss(void) {
       _alive = false;
       _tempPos = 0;
-      _pos = 0;
+      _pos = 3;
     }
     void Spawn(int pos, int dir, int speed_) {
       _pos = pos;
@@ -197,9 +204,9 @@ void setup() {
 }
 
 void loop () {
-  long mm = millis();
+  ms = millis();
   long lastRefreshTime = 0;
-    if (mm - lastRefreshTime >= REFRESH_INTERVAL) {
+    if (ms - lastRefreshTime >= REFRESH_INTERVAL) {
       lastRefreshTime += REFRESH_INTERVAL;
       drawCharacter(hero);
       
@@ -288,18 +295,32 @@ void getInput(Character &character) {
   if (xPosition < -4 && (yPosition > -10 && yPosition < 10)) {
     character._color = CRGB::Yellow;
     if (!character._jump && character._pos < 138) {
+      character._jumpTime = millis();
       character._jump = true;
       leds[character._pos] = CRGB::Black;
       character._pos += (7 * character._dir);
       enemyInteraction();
     }
   } else if (xPosition > 0 && (yPosition > -10 && yPosition < 10)) {
-    character._color = CRGB(102, 51, 153);
+    if (!character._shield) {
+      character._shield = true;
+      character._shieldTime = millis();
+      character._color = CRGB(102, 51, 153);
+    } else {
+      if (ms - character._shieldTime > 2000) {
+        character._color = CRGB::White;
+      }
+    }
   } else {
     character._color = CRGB::White;
-    character._jump = false; 
+    if (ms - character._shieldTime > 7000) {
+      character._shield = false;
+    }
+    if (ms - character._jumpTime > 3000) {
+      character._jump = false; 
+    }
     if (character._attack) {
-      if (joyButtonState == 1) {
+      if (joyButtonState == 1 && ms - character._attackTime > 4000) {
         character._attack = false;
       } else {
         for (int i = 1; i < 4; i++) {
@@ -310,10 +331,10 @@ void getInput(Character &character) {
     }
     if (!character._attack && joyButtonState == 0 && yPosition == 0) {
       character._attack = true;
+      character._attackTime = millis();
       for (int i = 1; i < 4; i++) {
-          leds[hero._pos + i] = CRGB::Salmon;
-          leds[hero._pos - i] = CRGB::Salmon;
-          //FastLED.show();
+          leds[hero._pos + i] = CRGB::Red;
+          leds[hero._pos - i] = CRGB::Red;
       }
     } 
   }
@@ -324,7 +345,7 @@ void enemyInteraction() {
   for (int i = 0; i < numEnemies; i++) {
     if (enemies[i]._alive) {
       if (hero._pos == enemies[i]._pos && hero._pos > 0) {
-        if (hero._color == CRGB(102,51,153)) {
+        if (hero._color == CRGB(102, 51, 153)) {
           
         } else {
           Die();
@@ -338,7 +359,7 @@ void enemyInteraction() {
   for (int i = 0; i < numSin; i++) {
     if (sinEnemies[i]._alive) {
       if (hero._pos == sinEnemies[i]._pos && hero._pos > 0) {
-        if (hero._color == CRGB(102,51,153)) {
+        if (hero._color == CRGB(102, 51, 153)) {
           
         } else {
           Die();
@@ -397,12 +418,12 @@ void drawEnemy() {
         enemies[i]._prevPos = enemies[i]._pos;
         enemies[i]._pos += (1 * enemies[i]._dir);
 
-        if (enemies[i]._pos < 0) {
+        if (enemies[i]._pos < 3) {
           enemies[i]._prevPos = 0;
           enemies[i]._pos = NUM_LEDS-1;
         } else if (enemies[i]._pos > NUM_LEDS-1) {
           enemies[i]._prevPos = NUM_LEDS-1;
-          enemies[i]._pos = 0;
+          enemies[i]._pos = 3;
         }
     
         leds[enemies[i]._prevPos] = CRGB::Black;
@@ -482,12 +503,12 @@ void drawCharacter (Character &character) {
     getInput(character);
     enemyInteraction();
 
-    if (hero._pos >= NUM_LEDS-1) {
-      hero._pos = 0;
+    if (character._pos >= NUM_LEDS-1) {
+      character._pos = 3;
       //FastLED.clear();
       Win();
-    } else if (hero._pos < 0) {
-      hero._pos = 0;
+    } else if (character._pos < 3) {
+      character._pos = 3;
     }
     
     character._tempPos += abs(yPosition);
@@ -501,12 +522,27 @@ void drawCharacter (Character &character) {
       
       character._tempPos = 0; 
     } 
+    if (!character._attack) {
+      leds[1] = CRGB::Red;
+    } else {
+      leds[1] = CRGB::Black;
+    }
+    if (!character._jump) {
+      leds[2] = CRGB::Yellow;
+    } else {
+      leds[2] = CRGB::Black;
+    }
+    if (!character._shield) {
+      leds[0] = CRGB(102, 51, 153);
+    } else {
+      leds[0] = CRGB::Black;
+    }
   }
 }
 
 void Die() {
   if (NUM_LEDS - hero._pos < 11 || hero._pos < 11) {
-    hero._pos = 0;
+    hero._pos = 3;
     return;
   } else {
     for (int i = 0; i < 10; i++) {
@@ -515,7 +551,7 @@ void Die() {
       FastLED.show();
     }
     FastLED.clear();
-    hero._pos = 0;
+    hero._pos = 3;
   }
 }
 
