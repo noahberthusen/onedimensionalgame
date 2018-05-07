@@ -7,10 +7,8 @@
 class Boss : public Enemy
 {
   public:
-    int guck[50];
     int _teleport;
-    int _guckCount = 0;
-    int _lives = 4;
+    int _lives = 5;
 };
 
 #endif

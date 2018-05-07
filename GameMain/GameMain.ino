@@ -44,7 +44,7 @@ Pit pits[numPits] =
   Pit(), Pit(), Pit()
 };
 
-int level = 2;
+int level = 7;
 
 
 void setup() {
@@ -62,11 +62,7 @@ void setup() {
 
 void loop () {
   ms = millis();
-  long lastRefreshTime = 0;
-  if (ms - lastRefreshTime >= REFRESH_INTERVAL) {
-    lastRefreshTime += REFRESH_INTERVAL;
-    drawCharacter(character);
-
+  drawCharacter(character);
     switch (level) {
       case 1:
         drawExit();
@@ -103,8 +99,6 @@ void loop () {
         break;
     }
     FastLED.show();
-  }
-
 }
 
 void setupLevel(int level) {
@@ -136,7 +130,7 @@ void setupLevel(int level) {
       SinEnemies[0].Spawn(20, 130, 20, 100);
       break;
     case 7:
-      boss.Spawn(130, -1, 10);
+      boss.Spawn(130, -1, 20);
       break;
     default:
       break;
@@ -214,11 +208,7 @@ void enemyInteraction() {
   for (int i = 0; i < numEnemies; i++) {
     if (Enemies[i]._alive) {
       if (character._pos == Enemies[i]._pos) {
-        if (character._color == CRGB(102, 51, 153)) {
-
-        } else {
-          Die();
-        }
+        character.Die(leds);
       }
       if (abs(character._pos - Enemies[i]._pos) <= 3 && character._attack) {
         Enemies[i].Kill(true, leds);
@@ -228,11 +218,7 @@ void enemyInteraction() {
   for (int i = 0; i < numSin; i++) {
     if (SinEnemies[i]._alive) {
       if (character._pos == SinEnemies[i]._pos) {
-        if (character._color == CRGB(102, 51, 153)) {
-
-        } else {
-          Die();
-        }
+        character.Die(leds);
       }
     }
     if (abs(character._pos - SinEnemies[i]._pos) <= 3 && character._attack) {
@@ -243,35 +229,30 @@ void enemyInteraction() {
     if (pits[i]._alive) {
       for (int j = 0; j < pits[i]._size; j++) {
         if (character._pos == pits[i]._pos + j) {
-          Die();
+          character.Die(leds);
         }
       }
     }
   }
-  //   if (boss._alive) {
-  //     if (character._pos == boss._pos) {
-  //         Die();
-  //       }
-  //     for (int i = 0; i < boss._lives; i++) {
-  //       if (character._pos == boss._pos+i) {
-  //         Die();
-  //       }
-  //     }
-  //     if (abs(boss._pos - character._pos) <= 3 && character._attack) {
-  //       boss._lives -= 1;
-  //       boss._speed += 10;
-  //       boss._pos = random(10,130);
-  //       if (boss._lives == 0) {
-  //         boss.Kill(true, leds);
-  //         drawExit();
-  //       }
-  //     }
-  //     for (int i = 0; i < boss._guckCount; i++) {
-  //       if (character._pos == boss.guck[i]) {
-  //         Die();
-  //       }
-  //     }
-  //   }
+  if (boss._alive) {
+    if (character._pos == boss._pos) {
+        character.Die(leds);
+    }
+    for (int i = 0; i < boss._lives; i++) {
+      if (character._pos == boss._pos+i) {
+        character.Die(leds);
+      }
+    }
+    if ((abs(boss._pos - character._pos) <= 3 || abs(boss._pos + boss._lives - character._pos <= 3)) && character._attack) {
+      boss._lives -= 1;
+      boss._speed += 30;
+      boss._pos = random(10,130);
+      if (boss._lives == 0) {
+        boss.Kill(true, leds);
+        drawExit();
+      }
+    }
+  }
 }
 
 void drawEnemy() {
@@ -295,10 +276,8 @@ void drawEnemy() {
         leds[Enemies[i]._prevPos] = CRGB::Black;
         leds[Enemies[i]._pos] = CRGB::Red;
 
-
         Enemies[i]._tempPos = 0;
       }
-
     }
   }
 }
@@ -335,13 +314,11 @@ void drawBoss(Boss &boss) {
     }
 
     boss._teleport += 1;
-    if (boss._teleport > 1000) {
+    if (boss._teleport > 3000) {
       boss._pos = random(10, 130);
-      boss.guck[boss._guckCount] = boss._pos;
-      boss._guckCount += 1;
-      if (boss._guckCount > 10) boss._guckCount = 0;
       boss._dir *= -1;
       boss._teleport = 0;
+      FastLED.clear();
     }
 
     //drawing boss
@@ -351,15 +328,11 @@ void drawBoss(Boss &boss) {
     for (int i = 0; i < boss._lives; i++) {
       leds[boss._pos + i] = CRGB::Green;
     }
-    //drawing guck
-    for (int i = 0; i < boss._guckCount; i++) {
-      leds[boss.guck[i]] = CRGB::Green;
-    }
-
-    if (boss._pos == 10) {
-      boss._pos = random(30, 130);
-    } else if (boss._pos == NUM_LEDS) {
-      boss._pos = random(30, 130);
+    
+    if (boss._pos <= 10) {
+      boss._dir = 1;
+    } else if (boss._pos > NUM_LEDS - 10) {
+      boss._dir = -1;
     }
   }
 }
@@ -369,7 +342,7 @@ void drawCharacter (Character &character) {
     getInput(character);
     enemyInteraction();
 
-    if (character._pos >= NUM_LEDS - 1) {
+    if (character._pos >= NUM_LEDS - 4) {
       Win();
     } else if (character._pos <= 3) {
       character._pos = 3;
@@ -386,21 +359,6 @@ void drawCharacter (Character &character) {
 
       character._tempPos = 0;
     }
-  }
-}
-
-void Die() {
-  if (NUM_LEDS - character._pos < 11 || character._pos < 11) {
-    character._pos = 3;
-    return;
-  } else {
-    for (int i = 0; i < 10; i++) {
-      leds[character._pos + i] = CRGB(0, random(255), random(255));
-      leds[character._pos - i] = CRGB(0, random(255), random(255));
-      FastLED.show();
-    }
-    FastLED.clear();
-    character._pos = 3;
   }
 }
 

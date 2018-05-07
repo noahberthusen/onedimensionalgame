@@ -25,10 +25,22 @@ class Character
       _jump = false;
       _shield = false;
       _attack = false;
-      _color = CRGB::Red;
       _tempPos = 0;
       _pos = 3;
       _alive = true;
+    }
+    void Die(CRGB leds[]) {
+      if (_color == CRGB(102,51,153)) {
+
+      } else {
+        for (int i = 0; i < 10; i++) {
+          leds[_pos + i] = CRGB(0, random(255), random(255));
+          leds[_pos - i] = CRGB(0, random(255), random(255));
+          FastLED.show();
+        }
+        FastLED.clear();
+        _pos = 3;
+      }
     }
 };
 
